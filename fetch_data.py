@@ -75,6 +75,8 @@ def stock_hist(code):
 
 def main():
     wl = json.load(open("watchlist.json", encoding="utf-8"))
+    wl["stocks"] = [str(s).strip().lower() for s in wl.get("stocks", [])]
+    wl["funds"] = [str(s).strip() for s in wl.get("funds", [])]
     data = {"updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), "funds": {}, "stocks": {}}
     for c in wl.get("funds", []):
         data["funds"][c] = fund_data(c); time.sleep(0.3)
