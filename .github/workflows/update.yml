@@ -1,7 +1,7 @@
-name: 行情每15分钟更新
+name: 行情每10分钟更新
 on:
   schedule:
-    - cron: '2,17,32,47 1-8 * * 1-5'
+    - cron: '3,13,23,33,43,53 1-8 * * 1-5'
   workflow_dispatch:
 permissions:
   contents: write
@@ -10,11 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - name: 抓取行情
-        run: python fetch_data.py || true
+        run: python3 fetch_data.py || true
       - name: 提交
         run: |
           git config user.name  "github-actions[bot]"
