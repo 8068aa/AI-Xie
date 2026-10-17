@@ -19,12 +19,24 @@ th{background:#fafbfc;color:#888;font-weight:500;padding:9px 10px;text-align:rig
 th:nth-child(-n+2),td:nth-child(-n+2){text-align:left}
 td{padding:10px;border-top:1px solid #f2f2f2;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 td a{color:#1971c2;text-decoration:none;cursor:pointer}
-.addrow input{width:100%;border:1px solid #ddd;border-radius:6px;padding:6px 8px;font-size:13px}
 .num{color:#888;font-size:12px}
+.pending td{background:#fffdf5}
 #chartBox{margin-top:18px;background:#fff;border-radius:12px;padding:12px;display:none}
 #chart{width:100%;height:300px}
-.empty{color:#bbb;font-size:12px;padding:14px;text-align:center}
 .foot{font-size:11px;color:#aaa;margin-top:16px;line-height:1.7}
+/* 弹窗 */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:99;padding:16px}
+.mask.show{display:flex}
+.modal{background:#fff;border-radius:14px;padding:20px;width:100%;max-width:360px}
+.modal h3{margin:0 0 12px;font-size:16px}
+.modal input{width:100%;border:1px solid #ddd;border-radius:8px;padding:11px 12px;font-size:16px;margin-bottom:12px}
+.modal .warn{background:#fff8e6;border:1px solid #ffe1a8;color:#8a6d1a;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.6;margin-bottom:12px;display:none}
+.modal .row{display:flex;gap:10px}
+.modal .row button{flex:1;border:0;border-radius:8px;padding:11px;font-size:14px;cursor:pointer}
+.btn-p{background:#222;color:#fff}.btn-s{background:#eceef1;color:#333}
+.codebox{display:flex;gap:8px;align-items:center;background:#f6f7f9;border-radius:8px;padding:8px 10px;margin:8px 0}
+.codebox code{flex:1;font-size:15px;font-weight:700;color:#111}
+.codebox button{border:1px solid #ddd;background:#fff;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
 @media(max-width:640px){table{font-size:12px}th,td{padding:8px 6px}.hideS{display:none}}
 </style></head><body><div class="wrap">
   <div class="hd"><b>蟹唠板投资</b><span class="upd" id="upd">加载中…</span></div>
@@ -34,19 +46,28 @@ td a{color:#1971c2;text-decoration:none;cursor:pointer}
     <div class="scard"><div class="l">累计收益</div><div class="v" id="sAll">—</div></div>
     <div class="scard"><div class="l">持仓标的数</div><div class="v" id="sCnt">—</div></div>
   </div>
-  <div class="sec"><h2>🐔 基金（支付宝/理财通同款净值）<button onclick="addFund()">+ 添加基金</button></h2>
-    <div style="overflow-x:auto"><table id="fundTbl"><thead><tr>
+  <div class="sec"><h2>🐔 基金（支付宝/理财通同款净值）<button onclick="openAdd('funds')">+ 添加基金</button></h2>
+    <div style="overflow-x:auto"><table><thead><tr>
       <th>名称</th><th class="hideS">代码</th><th>净值</th><th>涨跌</th><th>份额</th><th class="hideS">成本</th><th>市值</th><th>今日盈亏</th><th>持有收益</th><th></th>
     </tr></thead><tbody id="fundBody"></tbody></table></div>
   </div>
-  <div class="sec"><h2>📈 股票<button onclick="addStock()">+ 添加股票</button></h2>
-    <div style="overflow-x:auto"><table id="stkTbl"><thead><tr>
+  <div class="sec"><h2>📈 股票<button onclick="openAdd('stocks')">+ 添加股票</button></h2>
+    <div style="overflow-x:auto"><table><thead><tr>
       <th>名称</th><th class="hideS">代码</th><th>现价</th><th>涨跌</th><th>股数</th><th class="hideS">成本</th><th>市值</th><th>今日盈亏</th><th>持有收益</th><th></th>
     </tr></thead><tbody id="stkBody"></tbody></table></div>
   </div>
   <div id="chartBox"><div id="chart"></div></div>
-  <div class="foot">数据：基金净值=天天基金（每日收盘后更新）· 股票=新浪行情（盘中约15分钟延迟）· 持仓信息只保存在本浏览器，不会上传 · 添加盯梢标的：编辑仓库里的 watchlist.json</div>
+  <div class="foot">数据：基金净值=天天基金（每日收盘后更新）· 股票=新浪行情（盘中约15分钟延迟）· 持仓只存本浏览器 · <b>新加标的务必同步修改仓库 watchlist.json</b></div>
 </div>
+<div class="mask" id="mask"><div class="modal">
+  <h3 id="mTitle">添加</h3>
+  <input id="mInput" placeholder="" inputmode="text">
+  <div class="warn" id="mWarn"></div>
+  <div class="row">
+    <button class="btn-s" onclick="closeAdd()">取消</button>
+    <button class="btn-p" id="mOk">添加</button>
+  </div>
+</div></div>
 <script>
 /*
 * Licensed to the Apache Software Foundation (ASF) under one
@@ -95,8 +116,10 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
 </script>
 <script>
 var Q=null, H=JSON.parse(localStorage.getItem("licai_holdings")||'{"funds":{},"stocks":{}}');
-var chart=null;
+var EXTRA=JSON.parse(localStorage.getItem("licai_extra")||'{"funds":[],"stocks":[]}');
+var chart=null, addSec="funds";
 function saveH(){localStorage.setItem("licai_holdings",JSON.stringify(H));}
+function saveExtra(){localStorage.setItem("licai_extra",JSON.stringify(EXTRA));}
 function fm(n,d){return (n==null||isNaN(n))?"—":n.toLocaleString("zh-CN",{minimumFractionDigits:d??2,maximumFractionDigits:d??2});}
 function pctCls(p){return p>0?"up":(p<0?"down":"");}
 function sign(n){return (n>0?"+":"")+fm(n);}
@@ -104,9 +127,9 @@ function hold(sec,code){return H[sec]&&H[sec][code];}
 
 function render(){
   var mkt=0,day=0,all=0,cnt=0;
-  // 基金
   var fb=document.getElementById("fundBody"); fb.innerHTML="";
-  Object.keys(Q.funds).forEach(function(c){
+  var fundKeys=Object.keys(Q.funds);
+  fundKeys.forEach(function(c){
     var d=Q.funds[c], h=hold("funds",c);
     var prev=d.pct!=null? d.nav/(1+d.pct/100):d.nav;
     var row=document.createElement("tr");
@@ -120,21 +143,21 @@ function render(){
         +'<td class="'+pctCls(d.nav-h.cost)+'">'+sign(h.shares*(d.nav-h.cost))
         +'<div class="num">'+((d.nav/h.cost-1)*100).toFixed(1)+'%</div></td>')
        :'<td colspan="4" class="num" style="text-align:center">未持仓 · <a onclick="editHold(\'funds\',\''+c+'\')">录入</a></td>')
-      +(h?'<td><a onclick="delHold(\'funds\',\''+c+'\')">删</a></td>':'<td></td>');
+      +(h?'<td><a onclick="delHold(\'funds\',\''+c+'\')" title="清除持仓记录">清</a></td>':'<td></td>');
     fb.appendChild(row);
     if(h){mkt+=h.shares*d.nav; day+=h.shares*(d.nav-prev); all+=h.shares*(d.nav-h.cost); cnt++;}
   });
   EXTRA.funds.forEach(function(c){
-    if(Q.funds[c])return;
-    var row=document.createElement("tr");
+    if(fundKeys.indexOf(c)>=0)return;
+    var row=document.createElement("tr"); row.className="pending";
     row.innerHTML='<td><b>'+c+'</b></td><td class="hideS num">'+c+'</td>'
-      +'<td colspan="7" class="num" style="text-align:center">待同步：请把 '+c+' 加入仓库 watchlist.json 的 funds</td>'
-      +'<td><a onclick="delExtra(\'funds\',\''+c+'\')">删</a></td>';
+      +'<td colspan="7" class="num" style="text-align:center">⏳ 等待数据：请把 '+c+' 加入仓库 watchlist.json 的 funds</td>'
+      +'<td><a onclick="delExtra(\'funds\',\''+c+'\')">删除</a></td>';
     fb.appendChild(row);
   });
-  // 股票
   var sb=document.getElementById("stkBody"); sb.innerHTML="";
-  Object.keys(Q.stocks).forEach(function(c){
+  var stkKeys=Object.keys(Q.stocks);
+  stkKeys.forEach(function(c){
     var d=Q.stocks[c], h=hold("stocks",c);
     var row=document.createElement("tr");
     row.innerHTML='<td><a onclick="showHist(\'stocks\',\''+c+'\')">'+(d.name||c)+'</a></td>'
@@ -147,16 +170,16 @@ function render(){
         +'<td class="'+pctCls(d.price-h.cost)+'">'+sign(h.shares*(d.price-h.cost))
         +'<div class="num">'+((d.price/h.cost-1)*100).toFixed(1)+'%</div></td>')
        :'<td colspan="4" class="num" style="text-align:center">未持仓 · <a onclick="editHold(\'stocks\',\''+c+'\')">录入</a></td>')
-      +(h?'<td><a onclick="delHold(\'stocks\',\''+c+'\')">删</a></td>':'<td></td>');
+      +(h?'<td><a onclick="delHold(\'stocks\',\''+c+'\')" title="清除持仓记录">清</a></td>':'<td></td>');
     sb.appendChild(row);
     if(h){mkt+=h.shares*d.price; day+=h.shares*(d.price-d.prev); all+=h.shares*(d.price-h.cost); cnt++;}
   });
   EXTRA.stocks.forEach(function(c){
-    if(Q.stocks[c])return;
-    var row=document.createElement("tr");
+    if(stkKeys.indexOf(c)>=0)return;
+    var row=document.createElement("tr"); row.className="pending";
     row.innerHTML='<td><b>'+c.toUpperCase()+'</b></td><td class="hideS num">'+c.toUpperCase()+'</td>'
-      +'<td colspan="7" class="num" style="text-align:center">待同步：请把 '+c+' 加入仓库 watchlist.json 的 stocks</td>'
-      +'<td><a onclick="delExtra(\'stocks\',\''+c+'\')">删</a></td>';
+      +'<td colspan="7" class="num" style="text-align:center">⏳ 等待数据：请把 '+c+' 加入仓库 watchlist.json 的 stocks</td>'
+      +'<td><a onclick="delExtra(\'stocks\',\''+c+'\')">删除</a></td>';
     sb.appendChild(row);
   });
   document.getElementById("sMkt").textContent="¥"+fm(mkt);
@@ -165,6 +188,41 @@ function render(){
   document.getElementById("sCnt").textContent=cnt+" 只";
 }
 
+/* —— 添加弹窗（替代 prompt，手机兼容）—— */
+function openAdd(sec){
+  addSec=sec;
+  document.getElementById("mTitle").textContent = sec==="funds" ? "添加基金" : "添加股票";
+  document.getElementById("mInput").value="";
+  document.getElementById("mInput").placeholder = sec==="funds" ? "6位数字，如 161725" : "如 sh600519 / sz300750";
+  document.getElementById("mWarn").style.display="none";
+  document.getElementById("mask").classList.add("show");
+  setTimeout(function(){document.getElementById("mInput").focus();},100);
+}
+function closeAdd(){document.getElementById("mask").classList.remove("show");}
+document.getElementById("mOk").onclick=function(){
+  var c=document.getElementById("mInput").value.trim();
+  if(addSec==="funds"){
+    if(!/^\d{6}$/.test(c)){alert("基金代码是6位数字");return;}
+  }else{
+    c=c.toLowerCase(); if(!/^(sh|sz|bj)\d{6}$/.test(c)){alert("格式：sh/sz/bj+6位数字，如 sh600519");return;}
+  }
+  var inQ = Q[addSec] && Q[addSec][c];
+  var inE = EXTRA[addSec].indexOf(c)>=0;
+  if(inQ||inE){alert("已在列表里");return;}
+  EXTRA[addSec].push(c); saveExtra(); render();
+  // 引导去 watchlist
+  var w=document.getElementById("mWarn");
+  w.style.display="block";
+  w.innerHTML="✅ 已加入本地列表<br>⚠️ <b>还差一步才有数据</b>：到 GitHub 仓库把 <b>"+c+"</b> 加进 <b>watchlist.json</b> 的 "+addSec+" 里，提交后约 10 分钟自动出现行情。";
+  document.getElementById("mOk").textContent="好的";
+  document.getElementById("mOk").onclick=function(){closeAdd(); setTimeout(function(){document.getElementById("mOk").textContent="添加"; document.getElementById("mOk").onclick=arguments.callee;},0); closeAdd();};
+  document.getElementById("mOk").onclick=function(){closeAdd(); location.reload();};
+};
+function delExtra(sec,code){
+  if(!confirm("从列表删除 "+code+"？"))return;
+  var i=EXTRA[sec].indexOf(code); if(i>=0)EXTRA[sec].splice(i,1);
+  saveExtra(); render();
+}
 function editHold(sec,code){
   var isF=sec==="funds";
   var u1=prompt((isF?"持仓份额：":"持仓股数："), (H[sec][code]||{}).shares||"");
@@ -173,23 +231,9 @@ function editHold(sec,code){
   if(u2==null)return;
   H[sec][code]={shares:parseFloat(u1)||0, cost:parseFloat(u2)||0}; saveH(); render();
 }
-function delHold(sec,code){delete H[sec][code]; saveH(); render();}
-var EXTRA=JSON.parse(localStorage.getItem("licai_extra")||'{"funds":[],"stocks":[]}');
-function saveExtra(){localStorage.setItem("licai_extra",JSON.stringify(EXTRA));}
-function delExtra(sec,code){var i=EXTRA[sec].indexOf(code); if(i>=0)EXTRA[sec].splice(i,1); saveExtra(); render();}
-function addFund(){
-  var c=prompt("基金代码（6位数字，如 005827）："); if(!c)return;
-  c=c.trim(); if(!/^\d{6}$/.test(c)){alert("代码格式不对");return;}
-  if(EXTRA.funds.indexOf(c)>=0||(Q.funds&&Q.funds[c])){alert("已在列表里");return;}
-  EXTRA.funds.push(c); saveExtra(); render();
-  alert("已添加 "+c+"。\n\n它已显示在列表中（待同步状态）。\n要让行情每天自动更新：到仓库编辑 watchlist.json，在 funds 里加入 \""+c+"\"。");
-}
-function addStock(){
-  var c=prompt("股票代码（如 sh600519 / sz300750 / bj430047）："); if(!c)return;
-  c=c.trim().toLowerCase(); if(!/^(sh|sz|bj)\d{6}$/.test(c)){alert("格式：sh/sz/bj+6位数字");return;}
-  if(EXTRA.stocks.indexOf(c)>=0||(Q.stocks&&Q.stocks[c])){alert("已在列表里");return;}
-  EXTRA.stocks.push(c); saveExtra(); render();
-  alert("已添加 "+c+"。\n\n它已显示在列表中（待同步状态）。\n要让行情每天自动更新：到仓库编辑 watchlist.json，在 stocks 里加入 \""+c+"\"。");
+function delHold(sec,code){
+  if(!confirm("清除 "+code+" 的持仓记录？"))return;
+  delete H[sec][code]; saveH(); render();
 }
 function showHist(sec,code){
   var d=Q[sec][code]; if(!d||!d.hist||!d.hist.length)return;
@@ -197,8 +241,7 @@ function showHist(sec,code){
   if(!chart)chart=echarts.init(document.getElementById("chart"));
   var h=hold(sec,code);
   var series=[{name:d.name||code,type:"line",data:d.hist,showSymbol:false,lineStyle:{width:1.8,color:"#1971c2"},itemStyle:{color:"#1971c2"},areaStyle:{opacity:.08}}];
-  if(h){series.push({name:"成本",type:"line",data:d.hist.map(function(p){return [p[0],h.cost];}),
-    showSymbol:false,lineStyle:{width:1.2,color:"#f5a623",type:"dashed"},itemStyle:{color:"#f5a623"}});}
+  if(h){series.push({name:"成本",type:"line",data:d.hist.map(function(p){return [p[0],h.cost];}),showSymbol:false,lineStyle:{width:1.2,color:"#f5a623",type:"dashed"},itemStyle:{color:"#f5a623"}});}
   chart.setOption({animation:false,grid:{left:56,right:16,top:30,bottom:26},
     title:{text:(d.name||code)+" 近90天走势",left:"center",textStyle:{fontSize:13}},
     tooltip:{trigger:"axis"},
@@ -209,7 +252,7 @@ function showHist(sec,code){
   document.getElementById("chartBox").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 fetch("data.json").then(function(r){return r.json();}).then(function(d){
-  Q=d; document.getElementById("upd").textContent="行情更新于 "+d.updated+" · 每15分钟自动刷新";
+  Q=d; document.getElementById("upd").textContent="行情更新于 "+d.updated+" · 每10分钟自动刷新";
   render();
 }).catch(function(){document.getElementById("upd").textContent="data.json 加载失败：先运行一次 Actions";});
 </script></body></html>
