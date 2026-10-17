@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f6f7f9">
-<title>AI理财面板</title>
+<title>蟹唠板投资</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:#f6f7f9;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#222}
@@ -27,7 +27,7 @@ td a{color:#1971c2;text-decoration:none;cursor:pointer}
 .foot{font-size:11px;color:#aaa;margin-top:16px;line-height:1.7}
 @media(max-width:640px){table{font-size:12px}th,td{padding:8px 6px}.hideS{display:none}}
 </style></head><body><div class="wrap">
-  <div class="hd"><b>AI理财面板</b><span class="upd" id="upd">加载中…</span></div>
+  <div class="hd"><b>蟹唠板投资</b><span class="upd" id="upd">加载中…</span></div>
   <div class="sum">
     <div class="scard"><div class="l">持仓总市值</div><div class="v" id="sMkt">—</div></div>
     <div class="scard"><div class="l">今日盈亏</div><div class="v" id="sDay">—</div></div>
@@ -124,6 +124,14 @@ function render(){
     fb.appendChild(row);
     if(h){mkt+=h.shares*d.nav; day+=h.shares*(d.nav-prev); all+=h.shares*(d.nav-h.cost); cnt++;}
   });
+  EXTRA.funds.forEach(function(c){
+    if(Q.funds[c])return;
+    var row=document.createElement("tr");
+    row.innerHTML='<td><b>'+c+'</b></td><td class="hideS num">'+c+'</td>'
+      +'<td colspan="7" class="num" style="text-align:center">待同步：请把 '+c+' 加入仓库 watchlist.json 的 funds</td>'
+      +'<td><a onclick="delExtra(\'funds\',\''+c+'\')">删</a></td>';
+    fb.appendChild(row);
+  });
   // 股票
   var sb=document.getElementById("stkBody"); sb.innerHTML="";
   Object.keys(Q.stocks).forEach(function(c){
@@ -143,6 +151,14 @@ function render(){
     sb.appendChild(row);
     if(h){mkt+=h.shares*d.price; day+=h.shares*(d.price-d.prev); all+=h.shares*(d.price-h.cost); cnt++;}
   });
+  EXTRA.stocks.forEach(function(c){
+    if(Q.stocks[c])return;
+    var row=document.createElement("tr");
+    row.innerHTML='<td><b>'+c.toUpperCase()+'</b></td><td class="hideS num">'+c.toUpperCase()+'</td>'
+      +'<td colspan="7" class="num" style="text-align:center">待同步：请把 '+c+' 加入仓库 watchlist.json 的 stocks</td>'
+      +'<td><a onclick="delExtra(\'stocks\',\''+c+'\')">删</a></td>';
+    sb.appendChild(row);
+  });
   document.getElementById("sMkt").textContent="¥"+fm(mkt);
   var e1=document.getElementById("sDay"); e1.textContent=sign(day); e1.className="v "+pctCls(day);
   var e2=document.getElementById("sAll"); e2.textContent=sign(all); e2.className="v "+pctCls(all);
@@ -158,15 +174,22 @@ function editHold(sec,code){
   H[sec][code]={shares:parseFloat(u1)||0, cost:parseFloat(u2)||0}; saveH(); render();
 }
 function delHold(sec,code){delete H[sec][code]; saveH(); render();}
+var EXTRA=JSON.parse(localStorage.getItem("licai_extra")||'{"funds":[],"stocks":[]}');
+function saveExtra(){localStorage.setItem("licai_extra",JSON.stringify(EXTRA));}
+function delExtra(sec,code){var i=EXTRA[sec].indexOf(code); if(i>=0)EXTRA[sec].splice(i,1); saveExtra(); render();}
 function addFund(){
   var c=prompt("基金代码（6位数字，如 005827）："); if(!c)return;
   c=c.trim(); if(!/^\d{6}$/.test(c)){alert("代码格式不对");return;}
-  alert("已请求添加 "+c+"：请到仓库编辑 watchlist.json 的 funds 列表加入 \""+c+"\"，Actions 运行后即可显示");
+  if(EXTRA.funds.indexOf(c)>=0||(Q.funds&&Q.funds[c])){alert("已在列表里");return;}
+  EXTRA.funds.push(c); saveExtra(); render();
+  alert("已添加 "+c+"。\n\n它已显示在列表中（待同步状态）。\n要让行情每天自动更新：到仓库编辑 watchlist.json，在 funds 里加入 \""+c+"\"。");
 }
 function addStock(){
   var c=prompt("股票代码（如 sh600519 / sz300750 / bj430047）："); if(!c)return;
   c=c.trim().toLowerCase(); if(!/^(sh|sz|bj)\d{6}$/.test(c)){alert("格式：sh/sz/bj+6位数字");return;}
-  alert("已请求添加 "+c+"：请到仓库编辑 watchlist.json 的 stocks 列表加入 \""+c+"\"");
+  if(EXTRA.stocks.indexOf(c)>=0||(Q.stocks&&Q.stocks[c])){alert("已在列表里");return;}
+  EXTRA.stocks.push(c); saveExtra(); render();
+  alert("已添加 "+c+"。\n\n它已显示在列表中（待同步状态）。\n要让行情每天自动更新：到仓库编辑 watchlist.json，在 stocks 里加入 \""+c+"\"。");
 }
 function showHist(sec,code){
   var d=Q[sec][code]; if(!d||!d.hist||!d.hist.length)return;
